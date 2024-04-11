@@ -33,7 +33,7 @@ class Server
                     Console.WriteLine("Received: {0}", data);
 
                     // data = data.ToUpper();
-                    data = "HTTP/1.1 200 OK\r\n\r\n"
+                    data = "HTTP/1.1 200 OK\r\n\r\n";
 
                     byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
 
@@ -54,4 +54,4 @@ class Server
     }
 }
 
-// TODO send TCP request
+// TODO test HTTP response
