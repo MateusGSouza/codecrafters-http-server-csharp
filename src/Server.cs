@@ -7,12 +7,13 @@ class Server
     static void Main(string[] args)
     {
         TcpListener server = null;
+        int port = 4221;
         try
         {
-            server = new TcpListener(IPAddress.Any, 4221);
+            server = new TcpListener(IPAddress.Any, port);
             server.Start();
 
-            Console.WriteLine("Started server at port 4221");
+            Console.WriteLine($"Started server at port {port}");
             Byte[] bytes = new Byte[256];
             String data = null;
 
@@ -32,8 +33,16 @@ class Server
                     data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
                     Console.WriteLine("Received: {0}", data);
 
-                    // data = data.ToUpper();
-                    data = "HTTP/1.1 200 OK\r\n\r\n";
+                    string httpStartLine = data.Split("\r\n")[0];
+                    string requestPath = httpStartLine.Split(" ")[1];
+
+                    if (requestPath == "/")
+                    {
+                        data = "HTTP/1.1 200 OK\r\n\r\n";
+                    } else
+                    {
+                        data = "HTTP/1.1 404 Not Found\r\n\r\n";
+                    }
 
                     byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
 
@@ -53,5 +62,3 @@ class Server
 
     }
 }
-
-// TODO test HTTP response
