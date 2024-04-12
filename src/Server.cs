@@ -33,21 +33,27 @@ class Server
                     data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
                     Console.WriteLine("Received: {0}", data);
 
-                    string httpStartLine = data.Split("\r\n")[0];
-                    string requestPath = httpStartLine.Split(" ")[1];
+                    Dictionary<string, string> parsedData = ParseHeaders(data);
 
-                    if (requestPath == "/")
+                    switch (parsedData["Path"])
                     {
-                        data = "HTTP/1.1 200 OK\r\n\r\n";
-                    }
-                    else if (requestPath.Split("/")[1] == "echo")
-                    {
-                        string echoText = requestPath.Substring(6);
-                        data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {echoText.Length}\r\n\r\n{echoText}\r\n\r\n";
-                    }
-                    else
-                    {
-                        data = "HTTP/1.1 404 Not Found\r\n\r\n";
+                        case "/":
+                            data = "HTTP/1.1 200 OK\r\n\r\n";
+                            break;
+                        case string path when path.Contains("/echo"):
+                            string echoText = parsedData["Path"].Substring("/echo/".Length);
+                            data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {echoText.Length}\r\n\r\n{echoText}\r\n\r\n";
+                            break;
+                        case "/user-agent":
+                            if (parsedData.ContainsKey("User-Agent"))
+                            {
+                                string userAgent = parsedData["User-Agent"];
+                                data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgent.Length}\r\n\r\n{userAgent}\r\n\r\n";
+                            }
+                            break;
+                        default:
+                            data = "HTTP/1.1 404 Not Found\r\n\r\n";
+                            break;
                     }
 
                     byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
@@ -66,5 +72,26 @@ class Server
             server.Stop();
         }
 
+    }
+
+    static Dictionary<string, string> ParseHeaders(string requestData)
+    {
+        var requestLines = requestData.Split("\r\n");
+        string[] httpStartLine = requestLines[0].Split(" ");
+
+        var parsedData = new Dictionary<string, string>();
+        parsedData.Add("Method", httpStartLine[0]);
+        parsedData.Add("Path", httpStartLine[1]);
+        parsedData.Add("Protocol", httpStartLine[2]);
+
+        for (int i = 1; i < requestLines.Length; i++)
+        {
+            var parts = requestLines[i].Split(':');
+            if (parts.Length == 2)
+            {
+                parsedData.Add(parts[0].Trim(), parts[1].Trim());
+            }
+        }
+        return parsedData;
     }
 }
