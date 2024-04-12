@@ -39,7 +39,13 @@ class Server
                     if (requestPath == "/")
                     {
                         data = "HTTP/1.1 200 OK\r\n\r\n";
-                    } else
+                    }
+                    else if (requestPath.Split("/")[1] == "echo")
+                    {
+                        string echoText = requestPath.Substring(6);
+                        data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {echoText.Length}\r\n\r\n{echoText}\r\n\r\n";
+                    }
+                    else
                     {
                         data = "HTTP/1.1 404 Not Found\r\n\r\n";
                     }
