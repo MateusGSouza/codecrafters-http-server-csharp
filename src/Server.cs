@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+
 
 class Server
 {
@@ -14,55 +16,12 @@ class Server
             server.Start();
 
             Console.WriteLine($"Started server at port {port}");
-            Byte[] bytes = new Byte[256];
-            String data = null;
 
             while(true)
             {
-                using TcpClient client = server.AcceptTcpClient();
-                Console.WriteLine("Connected!");
-
-                data = null;
-
-                NetworkStream stream = client.GetStream();
-
-                int i;
-
-                while((i = stream.Read(bytes, 0, bytes.Length))!=0)
-                {
-                    data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
-                    Console.WriteLine("Received: {0}", data);
-
-                    Dictionary<string, string> parsedData = ParseHeaders(data);
-
-                    switch (parsedData["Path"])
-                    {
-                        case "/":
-                            data = "HTTP/1.1 200 OK\r\n\r\n";
-                            break;
-                        case string path when path.Contains("/echo"):
-                            string echoText = parsedData["Path"].Substring("/echo/".Length);
-                            data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {echoText.Length}\r\n\r\n{echoText}\r\n\r\n";
-                            break;
-                        case "/user-agent":
-                            if (parsedData.ContainsKey("User-Agent"))
-                            {
-                                string userAgent = parsedData["User-Agent"];
-                                data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgent.Length}\r\n\r\n{userAgent}\r\n\r\n";
-                            }
-                            break;
-                        default:
-                            data = "HTTP/1.1 404 Not Found\r\n\r\n";
-                            break;
-                    }
-
-                    byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
-
-                    stream.Write(msg, 0, msg.Length);
-                    Console.WriteLine("Sent: {0}", data);
-                }
+                server.BeginAcceptSocket(HandleConnect, server);
             }
-            }
+         }
         catch(SocketException e)
         {
             Console.WriteLine("SocketException: {0}", e);
@@ -75,7 +34,7 @@ class Server
     }
 
     static Dictionary<string, string> ParseHeaders(string requestData)
-    {
+    {   
         var requestLines = requestData.Split("\r\n");
         string[] httpStartLine = requestLines[0].Split(" ");
 
@@ -93,5 +52,52 @@ class Server
             }
         }
         return parsedData;
+    }
+
+    static void HandleConnect(IAsyncResult result)
+    {
+        try
+        {
+            var listener = (TcpListener)result.AsyncState;
+            var socket = listener.EndAcceptSocket(result);
+
+            var buffer = new byte[1024];
+            var bytes = socket.Receive(buffer);
+
+            var data = Encoding.UTF8.GetString(buffer);
+
+            Console.WriteLine("Received: {0}", data);
+
+            Dictionary<string, string> parsedData = ParseHeaders(data);
+
+            switch (parsedData["Path"])
+            {
+                case "/":
+                    data = "HTTP/1.1 200 OK\r\n\r\n";
+                    break;
+                case string path when path.Contains("/echo"):
+                    string echoText = parsedData["Path"].Substring("/echo/".Length);
+                    data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {echoText.Length}\r\n\r\n{echoText}\r\n\r\n";
+                    break;
+                case "/user-agent":
+                    if (parsedData.ContainsKey("User-Agent"))
+                    {
+                        string userAgent = parsedData["User-Agent"];
+                        data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgent.Length}\r\n\r\n{userAgent}\r\n\r\n";
+                    }
+                    break;
+                default:
+                    data = "HTTP/1.1 404 Not Found\r\n\r\n";
+                    break;
+            }
+            var msg = Encoding.UTF8.GetBytes(data);
+            socket.Send(msg);
+            socket.Close();
+            Console.WriteLine($"Sent: {data}");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Exception: {e}");
+        }
     }
 }
