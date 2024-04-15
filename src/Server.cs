@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-
+using System.IO;
 
 class Server
 {
@@ -70,6 +70,8 @@ class Server
 
             Dictionary<string, string> parsedData = ParseHeaders(data);
 
+            bool sendFile = false;
+            string fullPath = null;
             switch (parsedData["Path"])
             {
                 case "/":
@@ -86,12 +88,34 @@ class Server
                         data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgent.Length}\r\n\r\n{userAgent}\r\n\r\n";
                     }
                     break;
+                case string path when path.Contains("/files"):
+                    string fileName = parsedData["Path"].Substring("/files/".Length);
+                    string[] args = Environment.GetCommandLineArgs();
+
+                    fullPath = Path.Join(args[2], fileName);
+                    Console.WriteLine($"File full path: {fullPath}");
+                    if (File.Exists(fullPath))
+                    {
+                        byte[] fileContent = File.ReadAllBytes(fullPath);
+                        data = $"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {fileContent.Length}\r\n\r\n";
+                        sendFile = true;
+                    }
+                    else
+                    {
+                        data = "HTTP/1.1 404 File Not Found\r\n\r\n";
+                    }
+                    break;
                 default:
                     data = "HTTP/1.1 404 Not Found\r\n\r\n";
                     break;
             }
             var msg = Encoding.UTF8.GetBytes(data);
+
             socket.Send(msg);
+            if (sendFile)
+            {
+                socket.SendFile(fullPath);
+            }
             socket.Close();
             Console.WriteLine($"Sent: {data}");
         }
