@@ -43,6 +43,8 @@ class Server
         parsedData.Add("Path", httpStartLine[1]);
         parsedData.Add("Protocol", httpStartLine[2]);
 
+        bool hasBody = false;
+        var stringBuilder = new StringBuilder();
         for (int i = 1; i < requestLines.Length; i++)
         {
             var parts = requestLines[i].Split(':');
@@ -50,7 +52,18 @@ class Server
             {
                 parsedData.Add(parts[0].Trim(), parts[1].Trim());
             }
+            else if (string.IsNullOrWhiteSpace(requestLines[i]) && hasBody == false)
+            {
+                hasBody = true;
+                continue;
+            }
+
+            if (hasBody == true)
+            {
+                stringBuilder.Append(requestLines[i]);
+            }
         }
+        parsedData.Add("Body", stringBuilder.ToString().Replace("\0", ""));
         return parsedData;
     }
 
@@ -77,10 +90,12 @@ class Server
                 case "/":
                     data = "HTTP/1.1 200 OK\r\n\r\n";
                     break;
+
                 case string path when path.Contains("/echo"):
                     string echoText = parsedData["Path"].Substring("/echo/".Length);
                     data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {echoText.Length}\r\n\r\n{echoText}\r\n\r\n";
                     break;
+
                 case "/user-agent":
                     if (parsedData.ContainsKey("User-Agent"))
                     {
@@ -88,11 +103,20 @@ class Server
                         data = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {userAgent.Length}\r\n\r\n{userAgent}\r\n\r\n";
                     }
                     break;
+
                 case string path when path.Contains("/files"):
                     string fileName = parsedData["Path"].Substring("/files/".Length);
                     string[] args = Environment.GetCommandLineArgs();
 
                     fullPath = Path.Join(args[2], fileName);
+
+                    if (parsedData["Method"] == "POST")
+                    {
+                        System.IO.File.WriteAllText(fullPath, parsedData["Body"]);
+                        data = $"HTTP/1.1 201 Created\r\n\r\n";
+                        break;
+                    }
+
                     Console.WriteLine($"File full path: {fullPath}");
                     if (File.Exists(fullPath))
                     {
@@ -105,6 +129,7 @@ class Server
                         data = "HTTP/1.1 404 File Not Found\r\n\r\n";
                     }
                     break;
+
                 default:
                     data = "HTTP/1.1 404 Not Found\r\n\r\n";
                     break;
